@@ -20,13 +20,15 @@ const IngredientManager: React.FC<IngredientManagerProps> = ({
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState({ page: 0, totalPages: 0 });
   const [selectedForList, setSelectedForList] = useState<RecipeIngredient[] | null>(null);
 
-  const fetchIngredients = async (currentSearchTerm: string) => {
+  const fetchIngredients = async (currentSearchTerm: string, page: number = 0) => {
     setLoading(true);
     try {
-      const response = await apiService.getIngredients({ page: 0, size: 100 }, currentSearchTerm);
+      const response = await apiService.getIngredients({ page, size: 12 }, currentSearchTerm);
       setIngredients(response.data);
+      setPagination({ page: response.currentPage, totalPages: response.totalPages });
     } catch (err) {
       console.error("Failed to fetch ingredients:", err);
     } finally {
@@ -36,20 +38,20 @@ const IngredientManager: React.FC<IngredientManagerProps> = ({
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      fetchIngredients(searchTerm);
+      fetchIngredients(searchTerm, 0);
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
   useEffect(() => {
-    fetchIngredients(searchTerm);
-  }, []);
+    fetchIngredients(searchTerm, pagination.page);
+  }, [pagination.page]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Weet je zeker dat je dit ingrediënt wilt verwijderen?')) return;
     try {
       await apiService.deleteIngredient(id);
-      fetchIngredients(searchTerm);
+      fetchIngredients(searchTerm, pagination.page);
     } catch (err) {
       alert('Fout bij verwijderen.');
       console.error(err);
@@ -162,6 +164,32 @@ const IngredientManager: React.FC<IngredientManagerProps> = ({
           </table>
         </div>
       </div>
+
+      {pagination.totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 py-4">
+          <button 
+            disabled={pagination.page === 0}
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+            className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <span className="text-sm font-medium text-gray-700">
+            Pagina {pagination.page + 1} van {pagination.totalPages}
+          </span>
+          <button 
+            disabled={pagination.page >= pagination.totalPages - 1}
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+            className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {selectedForList && (
         <AddToGroceryListModal 
