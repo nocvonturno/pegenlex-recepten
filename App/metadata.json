@@ -1,0 +1,5 @@
+{
+  "name": "PegEnLex Recepten",
+  "description": "A modern, sleek recipe management application with full CRUD capabilities, searching, and seamless ingredient/tag integration.",
+  "requestFramePermissions": []
+}
