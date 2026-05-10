@@ -86,30 +86,62 @@ export const apiService = {
   // --- RECIPES ---
   getRecipes: async (pageable: Pageable): Promise<PaginatedResponse<Recipe>> => {
     try {
-      const params = new URLSearchParams({ page: pageable.page.toString(), size: pageable.size.toString() });
+      const params = new URLSearchParams({ 
+        page: pageable.page.toString(), 
+        size: pageable.size.toString() 
+      });
+      if (pageable.sort && pageable.sort.length > 0) {
+        pageable.sort.forEach(s => params.append('sort', s));
+      }
       const response = await fetch(`${BASE_URL}/recipes?${params}`);
       const data = await handleResponse(response);
       apiService.isMocked = false;
       return data;
     } catch (e) {
       apiService.isMocked = true;
-      return createPaginatedMock(session_recipes);
+      let sorted = [...session_recipes];
+      if (pageable.sort && pageable.sort.length > 0) {
+        const [field, direction] = pageable.sort[0].split(',');
+        sorted.sort((a, b) => {
+          const valA = (a as any)[field]?.toString().toLowerCase() || '';
+          const valB = (b as any)[field]?.toString().toLowerCase() || '';
+          if (direction === 'desc') return valB.localeCompare(valA);
+          return valA.localeCompare(valB);
+        });
+      }
+      return createPaginatedMock(sorted);
     }
   },
 
   searchRecipes: async (searchText: string, pageable: Pageable): Promise<PaginatedResponse<Recipe>> => {
     try {
-      const params = new URLSearchParams({ searchText, page: pageable.page.toString(), size: pageable.size.toString() });
+      const params = new URLSearchParams({ 
+        searchText, 
+        page: pageable.page.toString(), 
+        size: pageable.size.toString() 
+      });
+      if (pageable.sort && pageable.sort.length > 0) {
+        pageable.sort.forEach(s => params.append('sort', s));
+      }
       const response = await fetch(`${BASE_URL}/recipes/search?${params}`);
       const data = await handleResponse(response);
       apiService.isMocked = false;
       return data;
     } catch (e) {
       apiService.isMocked = true;
-      const filtered = session_recipes.filter(r => 
+      let filtered = session_recipes.filter(r => 
         r.title.toLowerCase().includes(searchText.toLowerCase()) || 
         r.cuisineType.toLowerCase().includes(searchText.toLowerCase())
       );
+      if (pageable.sort && pageable.sort.length > 0) {
+        const [field, direction] = pageable.sort[0].split(',');
+        filtered.sort((a, b) => {
+          const valA = (a as any)[field]?.toString().toLowerCase() || '';
+          const valB = (b as any)[field]?.toString().toLowerCase() || '';
+          if (direction === 'desc') return valB.localeCompare(valA);
+          return valA.localeCompare(valB);
+        });
+      }
       return createPaginatedMock(filtered);
     }
   },
@@ -224,6 +256,28 @@ export const apiService = {
     } catch (e) {
       apiService.isMocked = true;
       session_ingredients = session_ingredients.filter(i => i.id !== id);
+    }
+  },
+
+  getCategoryAutocomplete: async (query: string): Promise<string[]> => {
+    try {
+      const response = await fetch(`${BASE_URL}/ingredients/autocomplete/categories?query=${encodeURIComponent(query)}`);
+      return await handleResponse(response);
+    } catch (e) {
+      apiService.isMocked = true;
+      const categories = Array.from(new Set(session_ingredients.map(i => i.category)));
+      return categories.filter(c => c.toLowerCase().includes(query.toLowerCase()));
+    }
+  },
+
+  getCuisineAutocomplete: async (query: string): Promise<string[]> => {
+    try {
+      const response = await fetch(`${BASE_URL}/recipes/autocomplete/cuisine?query=${encodeURIComponent(query)}`);
+      return await handleResponse(response);
+    } catch (e) {
+      apiService.isMocked = true;
+      const cuisines = Array.from(new Set(session_recipes.map(r => r.cuisineType)));
+      return cuisines.filter(c => c.toLowerCase().includes(query.toLowerCase()));
     }
   },
 
@@ -444,6 +498,25 @@ export const apiService = {
       return await handleResponse(response);
     } catch (e) {
       return createPaginatedMock(session_tags);
+    }
+  },
+
+  uploadImage: async (file: File): Promise<{ imageUrl: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await fetch(`${BASE_URL}/images`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await handleResponse(response);
+      if (data && data.filename) {
+        return { imageUrl: `http://images.local/${data.filename}` };
+      }
+      return data;
+    } catch (e) {
+      apiService.isMocked = true;
+      return { imageUrl: URL.createObjectURL(file) };
     }
   }
 };

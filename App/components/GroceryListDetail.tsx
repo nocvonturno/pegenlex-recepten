@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GroceryList, GroceryListItem, Ingredient } from '../types';
+import { GroceryList, GroceryListItem, Ingredient, VALID_UNITS } from '../types';
 import { apiService } from '../apiService';
+import IngredientForm from './IngredientForm';
 
 interface GroceryListDetailProps {
   list: GroceryList;
@@ -19,6 +20,7 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
   const [newItemQty, setNewItemQty] = useState('1');
   const [newItemUnit, setNewItemUnit] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showIngredientForm, setShowIngredientForm] = useState(false);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
   // Drag and drop state
@@ -83,8 +85,6 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
     if (!list.id || !selectedIngredient) return;
     
     try {
-      // Use the bulk addition method even for single items to ensure it's wrapped in a list
-      // as required by the groceryitemslist structure.
       await apiService.addGroceryListItemsBulk(list.id, [{
         ingredientId: selectedIngredient.id,
         name: selectedIngredient.name,
@@ -100,6 +100,27 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
       fetchItems();
     } catch (err) {
       alert('Fout bij toevoegen item');
+    }
+  };
+
+  const handleCreateAndAddIngredient = async (ingData: Partial<Ingredient>) => {
+    if (!list.id) return;
+    try {
+      const newIng = await apiService.createIngredient(ingData);
+      await apiService.addGroceryListItemsBulk(list.id, [{
+        ingredientId: newIng.id,
+        name: newIng.name,
+        quantity: parseFloat(newItemQty) || 1,
+        unit: newItemUnit || newIng.unit
+      }]);
+      
+      setShowIngredientForm(false);
+      setSearchQuery('');
+      setNewItemQty('1');
+      setNewItemUnit('');
+      fetchItems();
+    } catch (err) {
+      alert('Fout bij aanmaken en toevoegen ingrediënt');
     }
   };
 
@@ -241,7 +262,7 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
             </form>
 
             {/* Suggestions Dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && searchQuery.length >= 2 && (
               <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 max-h-60 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 {suggestions.map(ing => (
                   <button
@@ -257,6 +278,21 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
                     <span className="text-[10px] font-black uppercase text-gray-300 group-hover:text-orange-300">Standaard: {ing.unit}</span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setShowIngredientForm(true)}
+                  className="w-full text-left px-5 py-4 hover:bg-orange-50 flex items-center gap-3 group transition-colors text-orange-600"
+                >
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                      <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-bold">"{searchQuery}" niet gevonden?</div>
+                    <div className="text-xs opacity-70">Klik hier om een nieuw ingrediënt aan te maken.</div>
+                  </div>
+                </button>
               </div>
             )}
           </div>
@@ -330,6 +366,19 @@ const GroceryListDetail: React.FC<GroceryListDetailProps> = ({ list, onBack }) =
           )}
         </div>
       </div>
+
+      {/* New Ingredient Modal */}
+      {showIngredientForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="w-full max-w-2xl my-auto">
+            <IngredientForm 
+              ingredient={{ name: searchQuery, category: '', unit: (newItemUnit as any) || 'gr', description: '', id: '', createdAt: '', updatedAt: '' }}
+              onSave={handleCreateAndAddIngredient}
+              onCancel={() => setShowIngredientForm(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Recipe, Ingredient, Tag, RecipeIngredient, RecipeUnit, VALID_UNITS } from '../types';
 import { apiService } from '../apiService';
 
@@ -31,6 +31,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
   const [ingSearch, setIngSearch] = useState('');
   const [loadingIngredients, setLoadingIngredients] = useState(false); // New loading state for ingredients
   const [tagSearch, setTagSearch] = useState('');
+  const [cuisineSuggestions, setCuisineSuggestions] = useState<string[]>([]);
+  const [showCuisineSuggestions, setShowCuisineSuggestions] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const cuisineRef = useRef<HTMLDivElement>(null);
 
   // Effect for fetching available ingredients with debounce
   useEffect(() => {
@@ -59,6 +63,40 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
   // Effect for initial tag load (does not need debounce as it's static filtering for now)
   useEffect(() => {
     apiService.getTags({ page: 0, size: 50 }).then(res => setAvailableTags(res.data));
+  }, []);
+
+  // Effect for cuisine type autocomplete
+  useEffect(() => {
+    if (!formData.cuisineType || formData.cuisineType.length < 1) {
+      setCuisineSuggestions([]);
+      return;
+    }
+
+    const fetchCuisineSuggestions = async () => {
+      try {
+        const suggestions = await apiService.getCuisineAutocomplete(formData.cuisineType!);
+        setCuisineSuggestions(suggestions);
+      } catch (error) {
+        console.error("Failed to fetch cuisine suggestions:", error);
+      }
+    };
+
+    const handler = setTimeout(() => {
+      fetchCuisineSuggestions();
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [formData.cuisineType]);
+
+  // Click outside listener for cuisine suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cuisineRef.current && !cuisineRef.current.contains(event.target as Node)) {
+        setShowCuisineSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -122,6 +160,21 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const res = await apiService.uploadImage(file);
+      setFormData(prev => ({ ...prev, imageUrl: res.imageUrl }));
+    } catch (error) {
+      console.error("Image upload failed:", error);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -143,7 +196,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
               <input
                 required
                 name="title"
-                value={formData.title}
+                value={formData.title || ''}
                 onChange={handleChange}
                 placeholder="e.g. Grandma's Special Pasta"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 transition-all outline-none text-gray-900 font-medium placeholder-gray-400"
@@ -155,7 +208,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
               <textarea
                 required
                 name="description"
-                value={formData.description}
+                value={formData.description || ''}
                 onChange={handleChange}
                 rows={3}
                 placeholder="A short story or summary of the dish..."
@@ -169,7 +222,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
                 <input
                   type="number"
                   name="prepTimeMinutes"
-                  value={formData.prepTimeMinutes}
+                  value={formData.prepTimeMinutes || 0}
                   onChange={handleChange}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
                 />
@@ -179,7 +232,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
                 <input
                   type="number"
                   name="cookTimeMinutes"
-                  value={formData.cookTimeMinutes}
+                  value={formData.cookTimeMinutes || 0}
                   onChange={handleChange}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
                 />
@@ -192,7 +245,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
                 <input
                   type="number"
                   name="servings"
-                  value={formData.servings}
+                  value={formData.servings || 1}
                   onChange={handleChange}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
                 />
@@ -201,7 +254,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Difficulty</label>
                 <select
                   name="difficultyLevel"
-                  value={formData.difficultyLevel}
+                  value={formData.difficultyLevel || 'Medium'}
                   onChange={handleChange}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
                 >
@@ -212,26 +265,106 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
               </div>
             </div>
 
-            <div>
+            <div className="relative" ref={cuisineRef}>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Cuisine Type</label>
               <input
                 name="cuisineType"
-                value={formData.cuisineType}
-                onChange={handleChange}
+                value={formData.cuisineType || ''}
+                onChange={(e) => {
+                  handleChange(e);
+                  setShowCuisineSuggestions(true);
+                }}
+                onFocus={() => setShowCuisineSuggestions(true)}
                 placeholder="e.g. Italian, Thai, Fusion"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium placeholder-gray-400"
+                autoComplete="off"
               />
+              {showCuisineSuggestions && cuisineSuggestions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  {cuisineSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="px-4 py-2 hover:bg-orange-50 cursor-pointer text-gray-700 font-medium transition-colors"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, cuisineType: suggestion }));
+                        setShowCuisineSuggestions(false);
+                      }}
+                    >
+                      {suggestion}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Image URL</label>
-              <input
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleChange}
-                placeholder="https://images.unsplash.com/..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 text-sm placeholder-gray-400"
-              />
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Recipe Image</label>
+              <div className="space-y-4">
+                {formData.imageUrl && (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shadow-inner group">
+                    <img 
+                      src={formData.imageUrl} 
+                      alt="Recipe Preview" 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                       <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, imageUrl: '' }))}
+                        className="bg-white/90 text-red-600 p-2 rounded-full shadow-lg hover:bg-red-50 transition-colors"
+                        title="Remove image"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="w-full">
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                      uploadingImage ? 'border-orange-200 bg-orange-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-gray-400'
+                    }`}>
+                      <div className="flex flex-col items-center justify-center py-4">
+                        {uploadingImage ? (
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-gray-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-semibold text-gray-600">Upload Image</span>
+                          </div>
+                        )}
+                        {!uploadingImage && <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-bold">JPG, PNG, GIF</p>}
+                      </div>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                      />
+                    </label>
+                  </div>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400 text-[10px] font-black uppercase bg-gray-100 px-1.5 py-0.5 rounded leading-none">URL</span>
+                    </div>
+                    <input
+                      name="imageUrl"
+                      value={formData.imageUrl || ''}
+                      onChange={handleChange}
+                      placeholder="...or paste an image link here"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-4 pl-14 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 text-sm placeholder-gray-400 transition-all shadow-sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -242,7 +375,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
               <textarea
                 required
                 name="instructions"
-                value={formData.instructions}
+                value={formData.instructions || ''}
                 onChange={handleChange}
                 rows={8}
                 placeholder="Step 1: Chop the onions...&#10;Step 2: Sauté in olive oil..."
@@ -362,13 +495,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onSave, onCancel }) => 
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
-                          value={ri.quantity}
+                          value={ri.quantity || 0}
                           onChange={(e) => handleUpdateIngQty(ri.ingredient.id!, parseFloat(e.target.value) || 0)}
                           className="w-16 bg-gray-50 border border-gray-200 rounded-lg py-1 px-2 text-center text-sm text-gray-900 font-bold"
                           aria-label={`Quantity for ${ri.ingredient.name}`}
                         />
                         <select
-                          value={ri.unit}
+                          value={ri.unit || 'gr'}
                           onChange={(e) => handleUpdateIngUnit(ri.ingredient.id!, e.target.value as RecipeUnit)}
                           className="text-sm text-gray-500 bg-gray-50 border-none rounded-lg py-1 px-1 outline-none"
                           aria-label={`Unit for ${ri.ingredient.name}`}

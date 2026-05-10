@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Ingredient, RecipeUnit, VALID_UNITS } from '../types';
+import { apiService } from '../apiService';
 
 interface IngredientFormProps {
   ingredient?: Ingredient;
@@ -18,9 +19,46 @@ const IngredientForm: React.FC<IngredientFormProps> = ({ ingredient, onSave, onC
     }
   );
 
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCategoryChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, category: value }));
+    
+    if (value.length > 0) {
+      try {
+        const results = await apiService.getCategoryAutocomplete(value);
+        setSuggestions(results);
+        setShowSuggestions(true);
+      } catch (err) {
+        setSuggestions([]);
+      }
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectSuggestion = (suggestion: string) => {
+    setFormData(prev => ({ ...prev, category: suggestion }));
+    setShowSuggestions(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -41,7 +79,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({ ingredient, onSave, onC
           <input
             required
             name="name"
-            value={formData.name}
+            value={formData.name || ''}
             onChange={handleChange}
             placeholder="Bijv. San Marzano Tomaten"
             className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
@@ -49,22 +87,37 @@ const IngredientForm: React.FC<IngredientFormProps> = ({ ingredient, onSave, onC
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div>
+          <div className="relative" ref={suggestionRef}>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Categorie</label>
             <input
               required
               name="category"
-              value={formData.category}
-              onChange={handleChange}
+              value={formData.category || ''}
+              onChange={handleCategoryChange}
+              onFocus={() => formData.category && suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="Bijv. Groenten"
+              autoComplete="off"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium"
             />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
+                {suggestions.map((suggestion, index) => (
+                  <div
+                    key={index}
+                    onClick={() => selectSuggestion(suggestion)}
+                    className="px-4 py-2 hover:bg-orange-50 cursor-pointer text-gray-700 font-medium transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Standaard Unit</label>
             <select
               name="unit"
-              value={formData.unit}
+              value={formData.unit || 'gr'}
               onChange={handleChange}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 font-medium appearance-none"
             >
@@ -79,7 +132,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({ ingredient, onSave, onC
           <label className="block text-sm font-semibold text-gray-700 mb-2">Omschrijving</label>
           <textarea
             name="description"
-            value={formData.description}
+            value={formData.description || ''}
             onChange={handleChange}
             rows={3}
             placeholder="Korte beschrijving van het product..."

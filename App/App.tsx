@@ -24,14 +24,15 @@ const App: React.FC = () => {
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [selectedGroceryList, setSelectedGroceryList] = useState<GroceryList | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<string>('title,asc');
   const [pagination, setPagination] = useState({ page: 0, totalPages: 0 });
   const [isMockMode, setIsMockMode] = useState(false);
 
-  const fetchRecipes = useCallback(async (search: string = '', page: number = 0) => {
+  const fetchRecipes = useCallback(async (search: string = '', page: number = 0, sort: string = 'title,asc') => {
     setLoading(true);
     setError(null);
     try {
-      const pageable: Pageable = { page, size: 12 };
+      const pageable: Pageable = { page, size: 12, sort: [sort] };
       const response = search 
         ? await apiService.searchRecipes(search, pageable)
         : await apiService.getRecipes(pageable);
@@ -48,9 +49,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (view === 'list' || view === 'detail') {
-      fetchRecipes(searchTerm, pagination.page);
+      fetchRecipes(searchTerm, pagination.page, sortBy);
     }
-  }, [searchTerm, pagination.page, fetchRecipes, view]);
+  }, [searchTerm, pagination.page, sortBy, fetchRecipes, view]);
 
   const handleCreate = () => {
     if (view === 'ingredients' || view.startsWith('ingredient')) {
@@ -165,15 +166,33 @@ const App: React.FC = () => {
         ) : (
           <>
             {view === 'list' && (
-              <RecipeList 
-                recipes={recipes} 
-                onEdit={handleEdit} 
-                onView={handleViewDetail}
-                onDelete={handleDelete}
-                currentPage={pagination.page}
-                totalPages={pagination.totalPages}
-                onPageChange={(p) => setPagination(prev => ({ ...prev, page: p }))}
-              />
+              <div className="space-y-6">
+                <div className="flex justify-end items-center gap-3">
+                  <label className="text-sm font-semibold text-gray-500">Sorteer op:</label>
+                  <select 
+                    value={sortBy}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setPagination(prev => ({ ...prev, page: 0 }));
+                    }}
+                    className="bg-white border border-gray-200 rounded-xl py-2 px-4 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-orange-500 outline-none"
+                  >
+                    <option value="title,asc">Titel (A-Z)</option>
+                    <option value="title,desc">Titel (Z-A)</option>
+                    <option value="cuisineType,asc">Keuken (A-Z)</option>
+                    <option value="cuisineType,desc">Keuken (Z-A)</option>
+                  </select>
+                </div>
+                <RecipeList 
+                  recipes={recipes} 
+                  onEdit={handleEdit} 
+                  onView={handleViewDetail}
+                  onDelete={handleDelete}
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  onPageChange={(p) => setPagination(prev => ({ ...prev, page: p }))}
+                />
+              </div>
             )}
             {(view === 'create' || view === 'edit') && (
               <RecipeForm 
