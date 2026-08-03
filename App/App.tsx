@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from './apiService';
-import { Recipe, Ingredient, GroceryList, Pageable } from './types';
+import { Recipe, Ingredient, GroceryList, Note, Pageable } from './types';
 import RecipeList from './components/RecipeList';
 import RecipeForm from './components/RecipeForm';
 import RecipeDetail from './components/RecipeDetail';
@@ -10,10 +10,13 @@ import IngredientForm from './components/IngredientForm';
 import GroceryListManager from './components/GroceryListManager';
 import GroceryListForm from './components/GroceryListForm';
 import GroceryListDetail from './components/GroceryListDetail';
+import NoteManager from './components/NoteManager';
+import NoteForm from './components/NoteForm';
+import NoteDetail from './components/NoteDetail';
 import Header from './components/Header';
 import MobileNav from './components/MobileNav';
 
-type AppView = 'list' | 'create' | 'edit' | 'detail' | 'ingredients' | 'ingredient_create' | 'ingredient_edit' | 'grocery_lists' | 'grocery_create' | 'grocery_edit' | 'grocery_detail';
+type AppView = 'list' | 'create' | 'edit' | 'detail' | 'ingredients' | 'ingredient_create' | 'ingredient_edit' | 'grocery_lists' | 'grocery_create' | 'grocery_edit' | 'grocery_detail' | 'notes' | 'note_create' | 'note_edit' | 'note_detail';
 
 const App: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -23,6 +26,7 @@ const App: React.FC = () => {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [selectedGroceryList, setSelectedGroceryList] = useState<GroceryList | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<string>('title,asc');
   const [pagination, setPagination] = useState({ page: 0, totalPages: 0 });
@@ -60,6 +64,9 @@ const App: React.FC = () => {
     } else if (view === 'grocery_lists' || view.startsWith('grocery')) {
       setSelectedGroceryList(null);
       setView('grocery_create');
+    } else if (view === 'notes' || view.startsWith('note')) {
+      setSelectedNote(null);
+      setView('note_create');
     } else {
       setSelectedRecipe(null);
       setView('create');
@@ -127,17 +134,40 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveNote = async (noteData: Partial<Note>) => {
+    try {
+      if ((view === 'note_edit' || selectedNote) && selectedNote?.id) {
+        await apiService.updateNote(selectedNote.id, noteData);
+      } else {
+        await apiService.createNote(noteData);
+      }
+      setView('notes');
+    } catch (err) {
+      alert('Fout bij opslaan notitie');
+    }
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    try {
+      await apiService.deleteNote(id);
+      setView('notes');
+    } catch (err) {
+      alert('Fout bij verwijderen notitie');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Header 
+      <Header
         onSearch={(val) => {
           setSearchTerm(val);
           setPagination(prev => ({ ...prev, page: 0 }));
-        }} 
+        }}
         onCreate={handleCreate}
         onHome={() => setView('list')}
         onIngredients={() => setView('ingredients')}
         onGroceryLists={() => setView('grocery_lists')}
+        onNotes={() => setView('notes')}
         isMockMode={isMockMode}
         currentView={view}
       />
@@ -247,9 +277,37 @@ const App: React.FC = () => {
               />
             )}
             {view === 'grocery_detail' && selectedGroceryList && (
-              <GroceryListDetail 
+              <GroceryListDetail
                 list={selectedGroceryList}
                 onBack={() => setView('grocery_lists')}
+              />
+            )}
+            {view === 'notes' && (
+              <NoteManager
+                onEditNote={(note) => {
+                  setSelectedNote(note);
+                  setView('note_edit');
+                }}
+                onCreateNote={handleCreate}
+                onViewNote={(note) => {
+                  setSelectedNote(note);
+                  setView('note_detail');
+                }}
+              />
+            )}
+            {(view === 'note_create' || view === 'note_edit') && (
+              <NoteForm
+                note={selectedNote || undefined}
+                onSave={handleSaveNote}
+                onCancel={() => setView('notes')}
+              />
+            )}
+            {view === 'note_detail' && selectedNote && (
+              <NoteDetail
+                note={selectedNote}
+                onBack={() => setView('notes')}
+                onEdit={() => setView('note_edit')}
+                onDelete={() => handleDeleteNote(selectedNote.id!)}
               />
             )}
           </>
@@ -262,11 +320,12 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      <MobileNav 
+      <MobileNav
         currentView={view}
         onHome={() => setView('list')}
         onIngredients={() => setView('ingredients')}
         onGroceryLists={() => setView('grocery_lists')}
+        onNotes={() => setView('notes')}
       />
     </div>
   );

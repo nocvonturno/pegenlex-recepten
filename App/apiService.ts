@@ -1,12 +1,13 @@
 
-import { 
-  Recipe, 
-  Ingredient, 
-  Tag, 
+import {
+  Recipe,
+  Ingredient,
+  Tag,
   GroceryList,
   GroceryListItem,
-  PaginatedResponse, 
-  Pageable 
+  Note,
+  PaginatedResponse,
+  Pageable
 } from './types';
 
 const BASE_URL = 'http://192.168.11.135:8090';
@@ -56,6 +57,11 @@ let session_grocery_items: GroceryListItem[] = [
   { id: 'gi1', groceryListId: 'gl1', ingredient: session_ingredients[3], quantity: 1, unit: 'kg', completed: false, priority: 0 },
   { id: 'gi2', groceryListId: 'gl1', ingredient: session_ingredients[0], quantity: 3, unit: 'blik', completed: true, priority: 1 },
   { id: 'gi3', groceryListId: 'gl1', ingredient: session_ingredients[2], quantity: 500, unit: 'ml', completed: false, priority: 2 },
+];
+
+let session_notes: Note[] = [
+  { id: 'n1', title: 'Boodschappenlijst week 1', content: 'Tomaten, basilicum, olijfolie, spaghetti, knoflook, parmezaan, zout, peper.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'n2', title: 'Ideeën voor nieuwe recepten', content: 'Probeer eens een thai curry met kokosmelk en verse groenten. Of een romige champignonsaus bij de pasta. Misschien ook eens een salade met geitenkaas en honing-mosterd dressing?', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 
 const createPaginatedMock = <T>(data: T[]): PaginatedResponse<T> => ({
@@ -487,6 +493,85 @@ export const apiService = {
         const item = session_grocery_items.find(gi => gi.id === id);
         if (item) item.priority = index;
       });
+    }
+  },
+
+  // --- NOTES ---
+  getNotes: async (pageable: Pageable): Promise<PaginatedResponse<Note>> => {
+    try {
+      const params = new URLSearchParams({ page: pageable.page.toString(), size: pageable.size.toString() });
+      const response = await fetch(`${BASE_URL}/notes?${params}`);
+      const data = await handleResponse(response);
+      apiService.isMocked = false;
+      return data;
+    } catch (e) {
+      apiService.isMocked = true;
+      return createPaginatedMock(session_notes);
+    }
+  },
+
+  searchNotes: async (searchText: string, pageable: Pageable): Promise<PaginatedResponse<Note>> => {
+    try {
+      const params = new URLSearchParams({ searchText, page: pageable.page.toString(), size: pageable.size.toString() });
+      const response = await fetch(`${BASE_URL}/notes/search?${params}`);
+      const data = await handleResponse(response);
+      apiService.isMocked = false;
+      return data;
+    } catch (e) {
+      apiService.isMocked = true;
+      const filtered = session_notes.filter(n =>
+        n.title.toLowerCase().includes(searchText.toLowerCase()) ||
+        n.content.toLowerCase().includes(searchText.toLowerCase())
+      );
+      return createPaginatedMock(filtered);
+    }
+  },
+
+  createNote: async (note: Partial<Note>): Promise<Note> => {
+    try {
+      const response = await fetch(`${BASE_URL}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(note),
+      });
+      return await handleResponse(response);
+    } catch (e) {
+      apiService.isMocked = true;
+      const newNote = {
+        ...note,
+        id: Math.random().toString(36).substr(2, 9),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      } as Note;
+      session_notes = [newNote, ...session_notes];
+      return newNote;
+    }
+  },
+
+  updateNote: async (id: string, note: Partial<Note>): Promise<Note> => {
+    try {
+      const response = await fetch(`${BASE_URL}/notes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(note),
+      });
+      return await handleResponse(response);
+    } catch (e) {
+      apiService.isMocked = true;
+      session_notes = session_notes.map(n => n.id === id ? { ...n, ...note, updatedAt: new Date().toISOString() } : n);
+      return session_notes.find(n => n.id === id)!;
+    }
+  },
+
+  deleteNote: async (id: string): Promise<void> => {
+    try {
+      const response = await fetch(`${BASE_URL}/notes/${id}`, {
+        method: 'DELETE',
+      });
+      await handleResponse(response);
+    } catch (e) {
+      apiService.isMocked = true;
+      session_notes = session_notes.filter(n => n.id !== id);
     }
   },
 

@@ -7,21 +7,24 @@ interface HeaderProps {
   onHome: () => void;
   onIngredients: () => void;
   onGroceryLists: () => void;
+  onNotes: () => void;
   isMockMode?: boolean;
   currentView: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  onSearch, 
-  onCreate, 
-  onHome, 
-  onIngredients, 
+const Header: React.FC<HeaderProps> = ({
+  onSearch,
+  onCreate,
+  onHome,
+  onIngredients,
   onGroceryLists,
+  onNotes,
   isMockMode,
   currentView
 }) => {
   const isIngredientsView = currentView === 'ingredients';
   const isGroceryView = currentView.startsWith('grocery');
+  const isNotesView = currentView.startsWith('note');
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -62,7 +65,7 @@ const Header: React.FC<HeaderProps> = ({
           >
             Ingrediënten
           </button>
-          <button 
+          <button
             onClick={onGroceryLists}
             className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               isGroceryView ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
@@ -70,9 +73,17 @@ const Header: React.FC<HeaderProps> = ({
           >
             Boodschappen
           </button>
+          <button
+            onClick={onNotes}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+              isNotesView ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            Notities
+          </button>
         </nav>
 
-        {!isIngredientsView && !isGroceryView && (
+        {!isIngredientsView && !isGroceryView && !isNotesView && (
           <div className="flex-grow max-w-md relative">
             <input 
               type="text" 
@@ -94,7 +105,7 @@ const Header: React.FC<HeaderProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           <span className="hidden sm:inline">
-            {isIngredientsView ? 'Ingrediënt' : isGroceryView ? 'Lijst' : 'Recept'} toevoegen
+            {isIngredientsView ? 'Ingrediënt' : isGroceryView ? 'Lijst' : isNotesView ? 'Notitie' : 'Recept'} toevoegen
           </span>
         </button>
       </div>
