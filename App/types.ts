@@ -74,6 +74,14 @@ export interface GroceryListItem {
   priority: number;
 }
 
+export interface Note {
+  id?: string;
+  title: string;
+  content: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Pageable {
   page: number;
   size: number;
