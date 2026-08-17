@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Recipe } from '../types';
 import RecipeCard from './RecipeCard';
 
@@ -13,15 +13,21 @@ interface RecipeListProps {
   onPageChange: (page: number) => void;
 }
 
-const RecipeList: React.FC<RecipeListProps> = ({ 
-  recipes, 
-  onEdit, 
-  onView, 
-  onDelete, 
-  currentPage, 
-  totalPages, 
-  onPageChange 
+const RecipeList: React.FC<RecipeListProps> = ({
+  recipes,
+  onEdit,
+  onView,
+  onDelete,
+  currentPage,
+  totalPages,
+  onPageChange
 }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentPage]);
+
   if (recipes.length === 0) {
     return (
       <div className="text-center py-20">
@@ -37,7 +43,7 @@ const RecipeList: React.FC<RecipeListProps> = ({
   }
 
   return (
-    <div className="space-y-8">
+    <div ref={listRef} className="space-y-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {recipes.map((recipe) => (
           <RecipeCard 
